@@ -1445,13 +1445,8 @@ sbrktest(void)
     exit(1);
   }
   if(pid == 0)
-<<<<<<< HEAD
-    exit();
-  wait(0);
-=======
     exit(0);
-  wait();
->>>>>>> tai
+  wait(0);
 
   // can one grow address space to something big?
 #define BIG (100*1024*1024)
@@ -1787,7 +1782,7 @@ main(int argc, char *argv[])
   mem();
   pipe1();
   preempt();
-  exitwait(0);
+  exitwait();
 
   rmdot();
   fourteen();
