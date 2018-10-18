@@ -16,9 +16,15 @@ sys_fork(void)
 int
 sys_exit(void)
 {
+<<<<<<< HEAD
   int status;
   argptr(0, (char **) & status, 4);
   exit(status);
+=======
+  int exit_status;
+  argptr(0, (char **) &exit_status, 4);
+  exit(exit_status);
+>>>>>>> tai
   return 0;  // not reached
 }
 
