@@ -343,7 +343,7 @@ pipe1(void)
     }
     if(total != 5 * 1033){
       printf(1, "pipe1 oops 3 total %d\n", total);
-      exit(0);
+      exit(1);
     }
     close(fds[0]);
     wait(0);
@@ -821,7 +821,7 @@ concreate(void)
 
   if(n != 40){
     printf(1, "concreate not enough files in directory listing\n");
-    exit(1);
+    exit(0);
   }
 
   for(i = 0; i < 40; i++){
@@ -883,7 +883,7 @@ linkunlink()
   if(pid)
     wait(0);
   else
-    exit(1);
+    exit(0);
 
   printf(1, "linkunlink ok\n");
 }
@@ -954,7 +954,7 @@ subdir(void)
 
   if(unlink("dd") >= 0){
     printf(1, "unlink dd (non-empty dir) succeeded!\n");
-    exit(0);
+    exit(1);
   }
 
   if(mkdir("/dd/dd") != 0){
@@ -993,7 +993,7 @@ subdir(void)
   }
   if(open("dd/dd/ff", O_RDONLY) >= 0){
     printf(1, "open (unlinked) dd/dd/ff succeeded\n");
-    exit(0);
+    exit(1);
   }
 
   if(chdir("dd") != 0){
@@ -1127,7 +1127,7 @@ bigwrite(void)
     fd = open("bigwrite", O_CREATE | O_RDWR);
     if(fd < 0){
       printf(1, "cannot create bigwrite\n");
-      exit(0);
+      exit(1);
     }
     int i;
     for(i = 0; i < 2; i++){
@@ -1715,7 +1715,7 @@ uio()
     port = RTC_DATA;
     asm volatile("inb %1,%0" : "=a" (val) : "d" (port));
     printf(1, "uio: uio succeeded; test FAILED\n");
-    exit(1);
+    exit(0);
   } else if(pid < 0){
     printf (1, "fork failed\n");
     exit(1);
@@ -1752,7 +1752,7 @@ main(int argc, char *argv[])
 
   if(open("usertests.ran", 0) >= 0){
     printf(1, "already ran user tests -- rebuild fs.img\n");
-    exit(0);
+    exit(1);
   }
   close(open("usertests.ran", O_CREATE));
 

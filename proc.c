@@ -230,6 +230,7 @@ exit(int status)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+  curproc->eCode = status;
 
   if(curproc == initproc)
     panic("init exiting");
@@ -286,6 +287,8 @@ wait(int *status)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
+	if(status != 0)
+		*status = p->eCode;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;

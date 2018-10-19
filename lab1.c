@@ -53,7 +53,7 @@ int exitWait(void) {
   return 0;
 }
 
-// int waitPid(void){
+int waitPid(void){
 //
 //   int ret_pid, exit_status;
 //   int i;
@@ -92,5 +92,5 @@ int exitWait(void) {
 //       ret_pid = waitpid(pid_a[4], &exit_status, 0);
 //       printf(1, "\n This is the child: Child# %d has exited with status %d\n",ret_pid, exit_status);
 //
-//       return 0;
-//   }
+       return 0;
+}
