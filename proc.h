@@ -7,11 +7,15 @@ struct cpu {
   volatile uint started;       // Has the CPU started?
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
+  struct cpu *cpu;
   struct proc *proc;           // The process running on this cpu or null
 };
 
 extern struct cpu cpus[NCPU];
 extern int ncpu;
+extern struct cpu *cpu asm("%gs:0");
+extern struct proc *proc asm("%gs:4");
+
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
@@ -49,8 +53,15 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int eCode;	       // Exit Status
+  int eCode;                // New exit status
+  int priority;                // Priority field
+  int bpriority;
+  int processArray[100];             // waitpid process array
+  int arraySize;
+  int startTime, runTime, turnAroundTime, endTime;
 };
+
+  int upTime;
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

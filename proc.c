@@ -88,6 +88,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 20;
+  p->bpriority = 20;
 
   release(&ptable.lock);
 
@@ -213,8 +215,12 @@ fork(void)
   pid = np->pid;
 
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
+  np->priority = 20;
+  np->startTime = ticks;
+  np->runTime = 0;
+   np->runTime += np->startTime - upTime; 
+   upTime = np->startTime; 
 
   release(&ptable.lock);
 
@@ -252,6 +258,17 @@ exit(int status)
 
   // Parent might be sleeping in wait(0).
   wakeup1(curproc->parent);
+	int x;
+
+	if(curproc->arraySize != 0) {
+		for( x = 0; x < curproc->arraySize; x++){
+			for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+				if(p->pid == curproc->processArray[x]){
+					wakeup1(p);
+				}
+			}
+		}
+	}
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -262,8 +279,19 @@ exit(int status)
     }
   }
 
+  curproc->endTime = ticks;
+  curproc->turnAroundTime = curproc->endTime - curproc->startTime;
+  curproc->runTime += curproc->endTime - upTime;
+  
+  cprintf("[%d]\tStart time:      %d\n", curproc->pid, curproc->startTime);
+  cprintf("\tEnd time:      %d\n", curproc->endTime);
+  cprintf("\tTurnaround time: %d\n", curproc->turnAroundTime);
+  cprintf("\tRunning time: %d\n", curproc->runTime);
+  cprintf("\tWaiting time: %d\n", curproc->turnAroundTime - curproc->runTime);
+
 
   // Jump into the scheduler, never to return.
+  curproc->priority = 0;
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
@@ -288,8 +316,9 @@ wait(int *status)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-	if(status != 0)
+	if(status != 0){
 		*status = p->eCode;
+	}
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -299,6 +328,7 @@ wait(int *status)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+	
         release(&ptable.lock);
         return pid;
       }
@@ -306,6 +336,65 @@ wait(int *status)
 
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
+      if(status){
+	*status = -1;	
+       }
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);
+   }
+}
+
+int
+waitpid(int pid, int *status, int options)
+{
+  struct proc *p;
+  struct proc *curproc = myproc();
+  
+  int procFound; //Flag if proc is found
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    procFound = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid != pid) //check if pid == passed in pid
+        continue;
+      procFound = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        if(status != 0) {
+          *status = p->eCode;
+        }
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+	if(status)
+		*status = p->eCode;
+        release(&ptable.lock);
+        return pid;
+      }
+     else{
+	p->processArray[p->arraySize] = curproc->pid;
+	p->arraySize++;
+	break;       
+
+	}	
+    }
+
+    // No point waiting if we don't have any children.
+    if(!procFound || curproc->killed){
+      if(status){
+	*status = -1;	
+       }
       release(&ptable.lock);
       return -1;
     }
@@ -313,7 +402,7 @@ wait(int *status)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
-}
+} 
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -329,23 +418,36 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
+  int maxPriority = 64;
+
   for(;;){
+    maxPriority = 64;
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE)
+      continue;
+    if(maxPriority >  p->priority)
+      maxPriority = p->priority;
+    }
+ 
+	
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      if(maxPriority < p->priority)
+	continue;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
+      upTime = ticks;
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -357,7 +459,6 @@ scheduler(void)
 
   }
 }
-
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -370,7 +471,7 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();
-
+  p->runTime += ticks - upTime;
   if(!holding(&ptable.lock))
     panic("sched ptable.lock");
   if(mycpu()->ncli != 1)
@@ -382,6 +483,22 @@ sched(void)
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
+}
+
+int changepriority(int priority){
+   struct proc *myProc = myproc();
+
+   acquire(&ptable.lock);
+   if(priority < 0 || priority > 63){
+      return -1;
+   }
+
+   myProc->priority = priority;
+   myProc->state = RUNNABLE; 
+   myProc->bpriority = priority;
+   release(&ptable.lock);
+   yield();
+   return priority;
 }
 
 // Give up the CPU for one scheduling round.
